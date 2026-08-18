@@ -1,0 +1,6 @@
+{
+  "site_name": "your_site_name",
+  "data_directory": "/your_absolute/path/to/clif/rclif",
+  "filetype": "your_filetype",
+  "timezone": "your_timezone"
+}
