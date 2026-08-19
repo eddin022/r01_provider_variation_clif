@@ -1,0 +1,23 @@
+[project]
+name = "r01-provider-variation-clif"
+version = "0.1.0"
+description = "Notebook analysis for CLIF provider variation VFD-28 outputs."
+requires-python = ">=3.12"
+dependencies = [
+    "clifpy",
+    "duckdb",
+    "matplotlib",
+    "numpy",
+    "pandas",
+    "polars",
+    "pyarrow",
+    "seaborn",
+]
+
+[dependency-groups]
+notebook = [
+    "ipykernel",
+]
+
+[tool.uv]
+package = false
