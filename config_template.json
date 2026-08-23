@@ -2,5 +2,6 @@
   "site_name": "your_site_name",
   "data_directory": "/your_absolute/path/to/clif/rclif",
   "filetype": "your_filetype",
-  "timezone": "your_timezone"
+  "timezone": "your_timezone",
+  "rscript_path": "C:\\Users\\cas28278\\AppData\\Local\\miniconda3\\envs\\ltvv-r\\lib\\R\\bin\\x64\\Rscript.exe"
 }
