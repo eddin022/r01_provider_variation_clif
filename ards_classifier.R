@@ -107,8 +107,11 @@ select <- dplyr::select
 # query keyed on device_category='IMV' plus an mdm_link_id column from respiratory_support to
 # derive patient_id -- mdm_link_id isn't part of standard CLIF respiratory_support and isn't used
 # anywhere else in this script, so that whole duckdb/DBI dependency is removed along with it.
-cohort_hosp_ids <- read_csv("cohort_hospitalization_ids.csv", show_col_types = FALSE) |>
-  mutate(hospitalization_id = as.character(hospitalization_id))
+cohort_hosp_ids <- read_csv("cohort_hospitalization_ids.csv", show_col_types = FALSE,
+                             col_types = cols(hospitalization_id = col_character(),
+                                              patient_id = col_character())) |>
+  mutate(hospitalization_id = as.character(hospitalization_id),
+         patient_id = as.character(patient_id))
 
 cardiac_arrest_dx <- open_dataset(diagnosis_path) |>
   filter(diagnosis_primary == 1, poa_present == 1) |>
