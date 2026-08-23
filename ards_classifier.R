@@ -69,20 +69,18 @@ stopifnot("America/Chicago" %in% OlsonNames())
 # <h1> Packages </h1>
 
 # %%
-packages <- c("lubridate", 
-              "tidyverse", 
+packages <- c("lubridate",
+              "tidyverse",
               "dplyr",
-              "tableone", 
-              "broom", 
-              "arrow", 
-              "rvest", 
-              "readr", 
-              "fst", 
-              "data.table", 
-              "collapse", 
-              "tictoc",
-              "DBI",
-              "duckdb")
+              "tableone",
+              "broom",
+              "arrow",
+              "rvest",
+              "readr",
+              "fst",
+              "data.table",
+              "collapse",
+              "tictoc")
 
 install_if_missing <- function(package) {
   if (!require(package, character.only = TRUE)) {
@@ -98,57 +96,36 @@ append_status(script_name, "packages_ready")
 #Use Dplyr select as default
 select <- dplyr::select
 
-# Duckdb connection
-con <- dbConnect(duckdb::duckdb(), dbdir = ":memory:")
-
 # %% [markdown]
 # <h1> Create the IMV cohort </h1>
 
 # %%
-sql <- sprintf("
-CREATE OR REPLACE TEMP VIEW icd10 AS
-    SELECT
-        hospitalization_id,
-        1 AS cardiac_arrest_primary_dx
-    FROM '%s'
-    WHERE diagnosis_primary = 1
-      AND poa_present = 1
-      AND (
-            REPLACE(diagnosis_code, '.', '') ILIKE 'i46%%'
-         OR REPLACE(diagnosis_code, '.', '') ILIKE 'i472%%'
-         OR REPLACE(diagnosis_code, '.', '') ILIKE 'i49%%'
-      )
-    GROUP BY hospitalization_id;
+# cohort_hospitalization_ids.csv is written by the calling notebook before this script runs --
+# hospitalization_id/patient_id for exactly its own analytic cohort (already confirmed IMV-eligible
+# there), so this script classifies only that cohort instead of re-scanning the whole site's
+# respiratory_support table for every ever-vented hospitalization_id. Previously done via a duckdb
+# query keyed on device_category='IMV' plus an mdm_link_id column from respiratory_support to
+# derive patient_id -- mdm_link_id isn't part of standard CLIF respiratory_support and isn't used
+# anywhere else in this script, so that whole duckdb/DBI dependency is removed along with it.
+cohort_hosp_ids <- read_csv("cohort_hospitalization_ids.csv", show_col_types = FALSE) |>
+  mutate(hospitalization_id = as.character(hospitalization_id))
 
-CREATE OR REPLACE TEMP VIEW resp AS
-    SELECT
-        hospitalization_id,
-        ANY_VALUE(mdm_link_id) AS mdm_link_id,
-        ANY_VALUE(mdm_link_id) AS patient_id
-    FROM '%s'
-    WHERE device_category = 'IMV'
-    GROUP BY hospitalization_id;
+cardiac_arrest_dx <- open_dataset(diagnosis_path) |>
+  filter(diagnosis_primary == 1, poa_present == 1) |>
+  collect() |>
+  mutate(
+    hospitalization_id = as.character(hospitalization_id),
+    dx_norm = str_remove_all(diagnosis_code, "\\.")
+  ) |>
+  filter(str_detect(dx_norm, regex("^i(46|472|49)", ignore_case = TRUE))) |>
+  distinct(hospitalization_id) |>
+  mutate(cardiac_arrest_primary_dx = 1)
 
-CREATE OR REPLACE TABLE all_hosp_ids_on_vent AS
-SELECT
-    resp.hospitalization_id,
-    ANY_VALUE(resp.mdm_link_id) AS mdm_link_id,
-    ANY_VALUE(resp.patient_id) AS patient_id,
-    MAX(icd10.cardiac_arrest_primary_dx) AS cardiac_arrest_primary_dx
-FROM resp
-LEFT JOIN icd10 USING (hospitalization_id)
-GROUP BY resp.hospitalization_id;
-", diagnosis_path, resp_path)
+all_hosp_ids_on_vent <- cohort_hosp_ids |>
+  left_join(cardiac_arrest_dx, by = "hospitalization_id") |>
+  mutate(cardiac_arrest_primary_dx = if_else(is.na(cardiac_arrest_primary_dx), 0, cardiac_arrest_primary_dx))
 
-dbExecute(con, sql)
-
-dbExecute(con, "
-COPY all_hosp_ids_on_vent
-TO 'all_hosp_ids_on_vent.parquet'
-(FORMAT PARQUET);
-")
-
-dbDisconnect(con, shutdown = TRUE)
+write_parquet(all_hosp_ids_on_vent, "all_hosp_ids_on_vent.parquet")
 append_status(script_name, "imv_cohort_created", list(path = "all_hosp_ids_on_vent.parquet"))
 
 # %% [markdown]
