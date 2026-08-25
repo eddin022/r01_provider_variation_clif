@@ -32,7 +32,7 @@ txt <- readLines("config.json", encoding = "UTF-8")
 txt[1] <- sub("^﻿", "", txt[1])
 cfg <- fromJSON(paste(txt, collapse = "\n"))
 
-tables_location <- cfg$paths$clif
+tables_location <- cfg$data_directory
 data_path <- "all_hosp_ids_on_vent.parquet"
 
 resp_path <- file.path(tables_location, "clif_respiratory_support.parquet")
